@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>工時紀錄</title>
+<style>
+:root{--bg:#eef2f1;--card:#fff;--ink:#17302c;--mut:#5f7571;--line:#d5dfdc;--acc:#0f766e;--accink:#fff;--warn:#b45309;--warnbg:#fef3c7;--danger:#b91c1c;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10201e;--card:#1a2e2b;--ink:#e6f1ef;--mut:#93aca7;--line:#2c4540;--acc:#2dd4bf;--accink:#06201c;--warn:#fcd34d;--warnbg:#3a2f0e;--danger:#f87171}}
+:root[data-theme="dark"]{--bg:#10201e;--card:#1a2e2b;--ink:#e6f1ef;--mut:#93aca7;--line:#2c4540;--acc:#2dd4bf;--accink:#06201c;--warn:#fcd34d;--warnbg:#3a2f0e;--danger:#f87171}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px 14px 60px}
+h2{font-size:15px;margin:22px 0 8px;color:var(--mut);font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;color:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:16px 10px;min-height:56px;position:relative;touch-action:manipulation}
+button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+button:active{transform:scale(.98)}
+.proc{font-weight:600}
+.proc:disabled{opacity:.4}
+.big{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:700;width:100%}
+.link{border:0;background:none;color:var(--acc);padding:6px 4px;min-height:0;font-size:14px}
+.x{position:absolute;top:-8px;right:-8px;width:26px;height:26px;min-height:0;padding:0;border-radius:50%;background:var(--danger);color:#fff;border:0;font-size:15px;line-height:1}
+.run .name{font-size:22px;font-weight:700}
+.timer{font-size:42px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.5px}
+.meta{color:var(--mut);font-size:14px}
+.sub{background:var(--warnbg);color:var(--warn);border-radius:10px;padding:8px 10px;margin-top:10px;font-weight:600}
+.sub.on{outline:2px solid var(--warn)}
+.oth{border-style:dashed}
+.oth.active{background:var(--warnbg);color:var(--warn);border:2px solid var(--warn);font-weight:700}
+.add{display:flex;gap:8px;margin-top:10px}
+input[type=text]{flex:1;min-width:0;font:inherit;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.add button{min-height:0;padding:10px 16px;background:var(--acc);color:var(--accink);border:0;font-weight:600}
+.day{font-weight:700;margin:18px 0 6px}
+.log{margin-bottom:10px}
+.log .row{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.log .t{font-weight:700}
+.dur{font-variant-numeric:tabular-nums;font-weight:700;color:var(--acc)}
+.li{font-size:14px;color:var(--warn);margin-top:3px;padding-left:10px;border-left:3px solid var(--warn)}
+.empty{color:var(--mut);text-align:center;padding:18px}
+textarea{width:100%;height:120px;margin-top:8px;font:13px monospace;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px}
+.del{font-size:13px;color:var(--danger)}
+</style>
+</head>
+<body>
+<main>
+<div id="runbox"></div>
+<h2><span id="h-proc">選擇製程（點一下開始計時）</span><button class="link" id="edit">編輯選項</button></h2>
+<div class="grid" id="procs"></div>
+<div class="add" id="addp" hidden><input type="text" id="np" placeholder="新增製程名稱" maxlength="20"><button id="bp">新增</button></div>
+
+<div id="othwrap" hidden>
+<h2>製程中做了別的事（點一下開始，再點一下結束）</h2>
+<div class="grid" id="oths"></div>
+<div class="add" id="addo" hidden><input type="text" id="no" placeholder="新增其他事項名稱" maxlength="20"><button id="bo">新增</button></div>
+</div>
+
+<h2><span>紀錄</span><button class="link" id="copy">複製全部（可貼到 Excel）</button></h2>
+<textarea id="ta" hidden readonly></textarea>
+<div id="logs"></div>
+</main>
+<script>
+var KEY='worklog.v1';
+var S={procs:['製程A','製程B','製程C','製程D'],others:['開會','協助同事','找物料','設備異常','休息'],running:null,logs:[]};
+var editing=false;
+try{var r=localStorage.getItem(KEY);if(r){var o=JSON.parse(r);if(o&&o.procs)S=o}}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+var $=function(i){return document.getElementById(i)};
+function p2(n){return n<10?'0'+n:''+n}
+function hm(t){var d=new Date(t);return p2(d.getHours())+':'+p2(d.getMinutes())+':'+p2(d.getSeconds())}
+function dur(ms){ms=Math.max(0,Math.floor(ms/1000));var h=Math.floor(ms/3600),m=Math.floor(ms%3600/60),s=ms%60;return p2(h)+':'+p2(m)+':'+p2(s)}
+function dstr(t){var d=new Date(t);return d.getFullYear()+'/'+p2(d.getMonth()+1)+'/'+p2(d.getDate())}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function subMs(subs,now){var t=0;subs.forEach(function(s){t+=(s.end||now)-s.start});return t}
+
+function render(){
+  var run=S.running,now=Date.now();
+  var rb=$('runbox');
+  if(run){
+    var act=run.subs.filter(function(s){return !s.end})[0];
+    rb.innerHTML='<div class="card run"><div class="meta">進行中</div><div class="name">'+esc(run.name)+'</div>'+
+    '<div class="timer" id="tm">'+dur(now-run.start)+'</div><div class="meta">開始時間 '+hm(run.start)+'</div>'+
+    (act?'<div class="sub on">正在做：'+esc(act.name)+'（<span id="st">'+dur(now-act.start)+'</span>）</div>':'')+
+    '<div style="margin-top:12px"><button class="big" id="stop">結束製程</button></div></div>';
+    $('stop').onclick=stopRun;
+  } else rb.innerHTML='';
+  $('h-proc').textContent=run?'製程進行中':'選擇製程（點一下開始計時）';
+  var pe=$('procs');pe.innerHTML='';
+  S.procs.forEach(function(n,i){
+    var b=document.createElement('button');b.className='proc';b.textContent=n;b.disabled=!!run&&!editing;
+    b.onclick=function(){if(!run&&!editing)startRun(n)};
+    if(editing){var x=document.createElement('button');x.className='x';x.textContent='×';x.setAttribute('aria-label','刪除 '+n);
+      x.onclick=function(e){e.stopPropagation();S.procs.splice(i,1);save();render()};b.appendChild(x);b.disabled=false}
+    pe.appendChild(b)});
+  $('addp').hidden=!editing;
+  $('othwrap').hidden=!(run||editing);
+  var oe=$('oths');oe.innerHTML='';
+  S.others.forEach(function(n,i){
+    var b=document.createElement('button');b.className='oth';b.textContent=n;
+    if(run&&act&&act.name===n)b.classList.add('active');
+    b.onclick=function(){if(!editing)toggleSub(n)};
+    b.disabled=!run&&!editing;
+    if(editing){var x=document.createElement('button');x.className='x';x.textContent='×';x.setAttribute('aria-label','刪除 '+n);
+      x.onclick=function(e){e.stopPropagation();S.others.splice(i,1);save();render()};b.appendChild(x);b.disabled=false}
+    oe.appendChild(b)});
+  $('addo').hidden=!editing;
+  $('edit').textContent=editing?'完成':'編輯選項';
+  renderLogs();
+}
+function startRun(n){S.running={name:n,start:Date.now(),subs:[]};save();render()}
+function toggleSub(n){
+  var run=S.running;if(!run)return;var now=Date.now();
+  var act=run.subs.filter(function(s){return !s.end})[0];
+  if(act)act.end=now;
+  if(!act||act.name!==n)run.subs.push({name:n,start:now,end:null});
+  save();render();
+}
+function stopRun(){
+  var run=S.running;if(!run)return;var now=Date.now();
+  run.subs.forEach(function(s){if(!s.end)s.end=now});
+  S.logs.unshift({id:now,name:run.name,start:run.start,end:now,subs:run.subs});
+  S.running=null;save();render();
+}
+function renderLogs(){
+  var el=$('logs');
+  if(!S.logs.length){el.innerHTML='<div class="card empty">還沒有紀錄，選一個製程開始吧</div>';return}
+  var h='',last='';
+  S.logs.forEach(function(l){
+    var d=dstr(l.start);
+    if(d!==last){h+='<div class="day">'+d+'</div>';last=d}
+    var tot=l.end-l.start,sm=subMs(l.subs,l.end);
+    h+='<div class="card log"><div class="row"><span class="t">'+esc(l.name)+'</span><span class="dur">'+dur(tot)+'</span></div>'+
+    '<div class="meta">'+hm(l.start)+' – '+hm(l.end)+(l.subs.length?'　淨製程 '+dur(tot-sm):'')+'</div>';
+    l.subs.forEach(function(s){h+='<div class="li">'+esc(s.name)+'　'+hm(s.start)+' – '+hm(s.end)+'（'+dur(s.end-s.start)+'）</div>'});
+    h+='<button class="link del" data-id="'+l.id+'">刪除</button></div>';
+  });
+  el.innerHTML=h;
+  Array.prototype.forEach.call(el.querySelectorAll('.del'),function(b){
+    b.onclick=function(){var id=+b.getAttribute('data-id');S.logs=S.logs.filter(function(x){return x.id!==id});save();render()}});
+}
+function addItem(inp,arr){var v=$(inp).value.trim();if(v&&arr.indexOf(v)<0){arr.push(v);save()}$(inp).value='';render()}
+$('bp').onclick=function(){addItem('np',S.procs)};
+$('bo').onclick=function(){addItem('no',S.others)};
+$('np').onkeydown=function(e){if(e.key==='Enter')addItem('np',S.procs)};
+$('no').onkeydown=function(e){if(e.key==='Enter')addItem('no',S.others)};
+$('edit').onclick=function(){editing=!editing;render()};
+$('copy').onclick=function(){
+  var rows=['日期\t製程\t開始\t結束\t總時間\t其他事項(時間)'];
+  S.logs.slice().reverse().forEach(function(l){
+    var subs=l.subs.map(function(s){return s.name+' '+hm(s.start)+'-'+hm(s.end)}).join('；');
+    rows.push([dstr(l.start),l.name,hm(l.start),hm(l.end),dur(l.end-l.start),subs].join('\t'))});
+  var txt=rows.join('\n'),ta=$('ta');ta.value=txt;ta.hidden=false;ta.select();
+  try{navigator.clipboard.writeText(txt).then(function(){ta.hidden=true;$('copy').textContent='已複製 ✓';setTimeout(function(){$('copy').textContent='複製全部（可貼到 Excel）'},1500)},function(){})}catch(e){}
+};
+setInterval(function(){
+  var run=S.running;if(!run)return;var now=Date.now();
+  var t=$('tm');if(t)t.textContent=dur(now-run.start);
+  var act=run.subs.filter(function(s){return !s.end})[0],st=$('st');if(act&&st)st.textContent=dur(now-act.start);
+},1000);
+render();
+</script>
+</body>
+</html>
