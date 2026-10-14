@@ -10,6 +10,7 @@ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:en
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10201e;--card:#1a2e2b;--ink:#e6f1ef;--mut:#93aca7;--line:#2c4540;--acc:#2dd4bf;--accink:#06201c;--warn:#fcd34d;--warnbg:#3a2f0e;--danger:#f87171;--out:#a5b4fc;--outbg:#272a52}}
 :root[data-theme="dark"]{--bg:#10201e;--card:#1a2e2b;--ink:#e6f1ef;--mut:#93aca7;--line:#2c4540;--acc:#2dd4bf;--accink:#06201c;--warn:#fcd34d;--warnbg:#3a2f0e;--danger:#f87171;--out:#a5b4fc;--outbg:#272a52}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
 main{max-width:520px;margin:0 auto;padding:16px 14px 60px}
@@ -51,9 +52,11 @@ textarea{width:100%;height:120px;margin-top:8px;font:13px monospace;border-radiu
 </head>
 <body>
 <main>
-<div class="tabs" id="tabs"></div>
+<div class="tabs" id="areas"></div>
+<div class="tabs" id="tabs" style="margin-top:8px"></div>
 <div id="runbox" style="margin-top:14px"></div>
 
+<div id="clean">
 <h2><span id="h-proc"></span><button class="link" id="edit"></button></h2>
 <div class="grid" id="g-proc"></div>
 <div class="add" id="a-proc" hidden><input type="text" id="i-proc" placeholder="新增製程（僅此組別）" maxlength="20"><button data-k="proc">新增</button></div>
@@ -68,19 +71,26 @@ textarea{width:100%;height:120px;margin-top:8px;font:13px monospace;border-radiu
 <div class="grid" id="g-out"></div>
 <div class="add" id="a-out" hidden><input type="text" id="i-out" placeholder="新增製程外項目" maxlength="20"><button data-k="out">新增</button></div>
 
+</div>
+<div id="office" hidden>
+<h2><span id="h-office"></span><button class="link" id="edit2"></button></h2>
+<div class="grid" id="g-office"></div>
+<div class="add" id="a-office" hidden><input type="text" id="i-office" placeholder="新增無塵室外項目" maxlength="20"><button data-k="office">新增</button></div>
+</div>
+
 <h2><span>紀錄</span><button class="link" id="copy">複製全部（可貼到 Excel）</button></h2>
 <textarea id="ta" hidden readonly></textarea>
 <div id="logs"></div>
 </main>
 <script>
 var KEY='worklog.v2';
-var OUT8=['配製','清潔','檢測','小天使','個人業務','臨時交辦','無現場製程','教育訓練'];
+var OUT8=['配製','清潔','檢測','小天使','個人業務','臨時交辦','教育訓練'];
 var GROUPS=['CIK商業針','WJ商業針'];
 var DEF={
  'CIK商業針':['進針','Pass','出針','凍cell bank','凍PBMC','解凍','解凍出針','養後凍','出+凍','進+解','取樣'],
  'WJ商業針':['出針','出針(恩慈)','解凍','放大','冷凍','GF解凍','GF放大','GF starvation','GF Wash','GF監控','GF裝瓶','GF裝瓶前處理','臍帶處理'],
- ins:OUT8.slice(),out:OUT8.slice()};
-var S={group:GROUPS[0],custom:{},running:null,logs:[]};
+ ins:OUT8.slice(),out:OUT8.slice(),office:['MSC會議','生產部值日生','週會','生產例會','外部解凍','外部冷凍','個人業務-檢測觀察']};
+var S={area:'clean',group:GROUPS[0],custom:{},running:null,logs:[]};
 var editing=false;
 try{var r=localStorage.getItem(KEY);
  if(r){var o=JSON.parse(r);if(o&&o.logs)S=o}
@@ -88,6 +98,7 @@ try{var r=localStorage.getItem(KEY);
   if(r1){var o1=JSON.parse(r1);(o1.logs||[]).forEach(function(l){l.kind='proc';l.group=l.group||'';S.logs.push(l)})}}
 }catch(e){}
 if(GROUPS.indexOf(S.group)<0)S.group=GROUPS[0];
+if(S.area!=='office')S.area='clean';
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 var $=function(i){return document.getElementById(i)};
 function cust(k){return S.custom[k]=S.custom[k]||{add:[],del:[]}}
@@ -114,16 +125,19 @@ function grid(id,k,cls,onclick,dis,isActive){
 }
 function render(){
   var run=S.running,now=Date.now(),g=S.group;
+  $('areas').innerHTML='';
+  [['clean','無塵室內'],['office','無塵室外']].forEach(function(a){var b=document.createElement('button');b.className='tab'+(S.area===a[0]?' on':'');b.textContent=a[1];b.onclick=function(){S.area=a[0];save();render()};$('areas').appendChild(b)});
+  $('clean').hidden=S.area!=='clean';$('office').hidden=S.area!=='office';$('tabs').hidden=S.area!=='clean';
   $('tabs').innerHTML='';
   GROUPS.forEach(function(n){var b=document.createElement('button');b.className='tab'+(n===g?' on':'');b.textContent=n;
     b.onclick=function(){S.group=n;save();render()};$('tabs').appendChild(b)});
   var rb=$('runbox');
   if(run){
     var act=run.kind==='proc'?actSub(run):null;
-    rb.innerHTML='<div class="card run"><div class="meta">'+(run.kind==='out'?'製程外進行中':'製程進行中')+'　'+esc(run.group)+'</div><div class="name">'+esc(run.name)+'</div>'+
+    rb.innerHTML='<div class="card run"><div class="meta">'+(run.kind==='out'?'製程外進行中':run.kind==='office'?'無塵室外進行中':'製程進行中')+'　'+esc(run.group)+'</div><div class="name">'+esc(run.name)+'</div>'+
     '<div class="timer" id="tm">'+dur(now-run.start)+'</div><div class="meta">開始時間 '+hm(run.start)+'</div>'+
     (act?'<div class="sub">正在做：'+esc(act.name)+'（<span id="st">'+dur(now-act.start)+'</span>）</div>':'')+
-    '<div style="margin-top:12px"><button class="big" id="stop">結束'+(run.kind==='out'?'':'製程')+'</button></div></div>';
+    '<div style="margin-top:12px"><button class="big" id="stop">結束'+(run.kind==='proc'?'製程':'')+'</button></div></div>';
     $('stop').onclick=stopRun;
   } else rb.innerHTML='';
   $('h-proc').textContent=run?'製程內（進行中，請先結束）':'製程內：'+g+'（點一下開始計時）';
@@ -133,11 +147,13 @@ function render(){
   $('insw').hidden=!((run&&run.kind==='proc')||editing);
   grid('g-ins','ins','oth',toggleSub,!(run&&run.kind==='proc'),function(n){return act2&&act2.name===n});
   grid('g-out','out','out',function(n){startRun('out',n)},!!run);
-  ['proc','ins','out'].forEach(function(k){$('a-'+k).hidden=!editing});
-  $('edit').textContent=editing?'完成':'編輯選項';
+  $('h-office').textContent=run?'無塵室外業務（進行中，請先結束）':'無塵室外業務（點一下開始計時）';
+  grid('g-office','office','out',function(n){startRun('office',n)},!!run);
+  ['proc','ins','out','office'].forEach(function(k){$('a-'+k).hidden=!editing});
+  $('edit').textContent=$('edit2').textContent=editing?'完成':'編輯選項';
   renderLogs();
 }
-function startRun(kind,n){if(S.running)return;S.running={kind:kind,group:S.group,name:n,start:Date.now(),subs:[]};save();render()}
+function startRun(kind,n){if(S.running)return;S.running={kind:kind,group:kind==='office'?'':S.group,name:n,start:Date.now(),subs:[]};save();render()}
 function toggleSub(n){
   var run=S.running;if(!run||run.kind!=='proc')return;var now=Date.now(),a=actSub(run);
   if(a)a.end=now;
@@ -157,7 +173,7 @@ function renderLogs(){
   S.logs.forEach(function(l){
     var d=dstr(l.start);if(d!==last){h+='<div class="day">'+d+'</div>';last=d}
     var tot=l.end-l.start,sm=0;l.subs.forEach(function(s){sm+=s.end-s.start});
-    h+='<div class="card log"><div class="row"><span class="t">'+esc(l.name)+(l.kind==='out'?'<span class="tag">製程外</span>':'')+'</span><span class="dur">'+dur(tot)+'</span></div>'+
+    h+='<div class="card log"><div class="row"><span class="t">'+esc(l.name)+(l.kind==='out'?'<span class="tag">製程外</span>':l.kind==='office'?'<span class="tag">無塵室外</span>':'')+'</span><span class="dur">'+dur(tot)+'</span></div>'+
     '<div class="meta">'+(l.group?esc(l.group)+'　':'')+hm(l.start)+' – '+hm(l.end)+(l.subs.length?'　淨製程 '+dur(tot-sm):'')+'</div>';
     l.subs.forEach(function(s){h+='<div class="li">'+esc(s.name)+'　'+hm(s.start)+' – '+hm(s.end)+'（'+dur(s.end-s.start)+'）</div>'});
     h+='<button class="link del" data-id="'+l.id+'">刪除</button></div>';
@@ -171,13 +187,13 @@ function addItem(k){
   if(v)addTo(k==='proc'?S.group:k,v);inp.value='';render();
 }
 Array.prototype.forEach.call(document.querySelectorAll('.add button'),function(b){b.onclick=function(){addItem(b.getAttribute('data-k'))}});
-['proc','ins','out'].forEach(function(k){$('i-'+k).onkeydown=function(e){if(e.key==='Enter')addItem(k)}});
-$('edit').onclick=function(){editing=!editing;render()};
+['proc','ins','out','office'].forEach(function(k){$('i-'+k).onkeydown=function(e){if(e.key==='Enter')addItem(k)}});
+$('edit').onclick=$('edit2').onclick=function(){editing=!editing;render()};
 $('copy').onclick=function(){
   var rows=['日期\t組別\t分類\t項目\t開始\t結束\t總時間\t插入事項'];
   S.logs.slice().reverse().forEach(function(l){
     var subs=l.subs.map(function(s){return s.name+' '+hm(s.start)+'-'+hm(s.end)}).join('；');
-    rows.push([dstr(l.start),l.group||'',l.kind==='out'?'製程外':'製程內',l.name,hm(l.start),hm(l.end),dur(l.end-l.start),subs].join('\t'))});
+    rows.push([dstr(l.start),l.group||'',l.kind==='out'?'製程外':l.kind==='office'?'無塵室外':'製程內',l.name,hm(l.start),hm(l.end),dur(l.end-l.start),subs].join('\t'))});
   var txt=rows.join('\n'),ta=$('ta');ta.value=txt;ta.hidden=false;ta.select();
   try{navigator.clipboard.writeText(txt).then(function(){ta.hidden=true;$('copy').textContent='已複製 ✓';setTimeout(function(){$('copy').textContent='複製全部（可貼到 Excel）'},1500)},function(){})}catch(e){}
 };
