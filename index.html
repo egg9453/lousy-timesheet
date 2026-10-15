@@ -48,6 +48,10 @@ input[type=text]{flex:1;min-width:0;font:inherit;padding:12px;border-radius:10px
 .empty{color:var(--mut);text-align:center;padding:18px}
 textarea{width:100%;height:120px;margin-top:8px;font:13px monospace;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px}
 .del{font-size:13px;color:var(--danger)}
+select,input[type=date],input[type=time]{font:inherit;padding:11px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);min-width:0;color-scheme:light dark}
+.f{display:grid;gap:10px}.f input,.f select{width:100%}
+.fr{display:flex;gap:8px;align-items:flex-end}.fr>*{flex:1;min-width:0}
+.err{color:var(--danger);font-size:14px;min-height:0}
 </style>
 </head>
 <body>
@@ -76,6 +80,22 @@ textarea{width:100%;height:120px;margin-top:8px;font:13px monospace;border-radiu
 <h2><span id="h-office"></span><button class="link" id="edit2"></button></h2>
 <div class="grid" id="g-office"></div>
 <div class="add" id="a-office" hidden><input type="text" id="i-office" placeholder="新增無塵室外項目" maxlength="20"><button data-k="office">新增</button></div>
+</div>
+
+<button class="big" id="manual" style="margin-top:22px">＋ 補登紀錄（忘了按計時）</button>
+<div class="card f" id="mf" hidden style="margin-top:10px">
+<div class="meta">分類／組別</div>
+<div class="fr"><select id="m-kind"><option value="proc">製程內</option><option value="out">製程外</option><option value="office">無塵室外</option></select><select id="m-group"></select></div>
+<div class="meta">項目</div>
+<select id="m-name"></select>
+<input type="text" id="m-other" placeholder="輸入項目名稱" maxlength="20" hidden>
+<div class="meta">日期</div>
+<input type="date" id="m-date">
+<div class="fr"><div><div class="meta">開始時間</div><input type="time" id="m-s" step="1"></div><div><div class="meta">結束時間</div><input type="time" id="m-e" step="1"></div></div>
+<div id="m-subw" class="f"><div class="meta">插入事項（選填）</div><div id="m-subs" class="f"></div><button class="link" id="m-add" type="button">＋ 新增一筆插入事項</button></div>
+<datalist id="dl-ins"></datalist>
+<div class="err" id="m-err"></div>
+<div class="fr"><button class="big" id="m-save">儲存</button><button id="m-cancel">取消</button></div>
 </div>
 
 <h2><span>紀錄</span><button class="link" id="copy">複製全部（可貼到 Excel）</button></h2>
@@ -202,6 +222,51 @@ setInterval(function(){
   var t=$('tm');if(t)t.textContent=dur(now-run.start);
   var a=run.kind==='proc'?actSub(run):null,st=$('st');if(a&&st)st.textContent=dur(now-a.start);
 },1000);
+function mKey(){var k=$('m-kind').value;return k==='proc'?$('m-group').value:k==='out'?'out':'office'}
+function mFill(){
+  var k=$('m-kind').value,sel=$('m-name');sel.innerHTML='';
+  list(mKey()).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o)});
+  var o=document.createElement('option');o.value='__o';o.textContent='其他（自行輸入）';sel.appendChild(o);
+  $('m-group').hidden=k==='office';$('m-subw').hidden=k!=='proc';$('m-other').hidden=sel.value!=='__o';
+}
+function mAddSub(){
+  var d=document.createElement('div');d.className='f sr';
+  d.innerHTML='<input type="text" class="sn" list="dl-ins" placeholder="插入事項名稱" maxlength="20"><div class="fr"><input type="time" class="ss" step="1" aria-label="開始時間"><input type="time" class="se" step="1" aria-label="結束時間"><button class="link" type="button">移除</button></div>';
+  d.querySelector('button').onclick=function(){d.remove()};$('m-subs').appendChild(d);
+}
+$('manual').onclick=function(){
+  var g=$('m-group');g.innerHTML='';GROUPS.forEach(function(n){var o=document.createElement('option');o.value=o.textContent=n;g.appendChild(o)});
+  g.value=S.group;$('m-kind').value='proc';
+  var dl=$('dl-ins');dl.innerHTML='';list('ins').forEach(function(n){var o=document.createElement('option');o.value=n;dl.appendChild(o)});
+  var t=new Date();$('m-date').value=t.getFullYear()+'-'+p2(t.getMonth()+1)+'-'+p2(t.getDate());
+  $('m-s').value='';$('m-e').value='';$('m-other').value='';$('m-subs').innerHTML='';$('m-err').textContent='';
+  mFill();$('mf').hidden=false;$('mf').scrollIntoView({block:'nearest'});
+};
+$('m-kind').onchange=$('m-group').onchange=mFill;
+$('m-name').onchange=function(){$('m-other').hidden=this.value!=='__o'};
+$('m-add').onclick=mAddSub;
+$('m-cancel').onclick=function(){$('mf').hidden=true};
+$('m-save').onclick=function(){
+  var err=$('m-err'),kind=$('m-kind').value,sv=$('m-name').value;
+  var name=sv==='__o'?$('m-other').value.trim():sv,date=$('m-date').value,ts=$('m-s').value,te=$('m-e').value;
+  if(!name||!date||!ts||!te){err.textContent='請填寫項目、日期、開始與結束時間';return}
+  var st=new Date(date+'T'+ts).getTime(),en=new Date(date+'T'+te).getTime();
+  if(!(en>st)){err.textContent='結束時間要晚於開始時間';return}
+  var subs=[],bad=false;
+  if(kind==='proc')Array.prototype.forEach.call(document.querySelectorAll('#m-subs .sr'),function(r){
+    var n=r.querySelector('.sn').value.trim(),a=r.querySelector('.ss').value,b=r.querySelector('.se').value;
+    if(!n&&!a&&!b)return;
+    if(!n||!a||!b){bad=true;return}
+    var ss=new Date(date+'T'+a).getTime(),se=new Date(date+'T'+b).getTime();
+    if(!(se>ss)||ss<st||se>en){bad=true;return}
+    subs.push({name:n,start:ss,end:se});
+  });
+  if(bad){err.textContent='插入事項要填完整，且時間要在上面的開始與結束之間';return}
+  subs.sort(function(x,y){return x.start-y.start});
+  S.logs.push({id:Date.now()+Math.floor(Math.random()*1000),kind:kind,group:kind==='office'?'':$('m-group').value,name:name,start:st,end:en,subs:subs});
+  S.logs.sort(function(x,y){return y.start-x.start});
+  save();$('mf').hidden=true;render();
+};
 render();
 </script>
 </body>
