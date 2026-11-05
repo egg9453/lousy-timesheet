@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>工時紀錄</title>
+<style>
+:root{--bg:#eef2f1;--card:#fff;--ink:#17302c;--mut:#5f7571;--line:#d5dfdc;--acc:#0f766e;--accink:#fff;--warn:#b45309;--warnbg:#fef3c7;--danger:#b91c1c;--out:#4338ca;--outbg:#e0e7ff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10201e;--card:#1a2e2b;--ink:#e6f1ef;--mut:#93aca7;--line:#2c4540;--acc:#2dd4bf;--accink:#06201c;--warn:#fcd34d;--warnbg:#3a2f0e;--danger:#f87171;--out:#a5b4fc;--outbg:#272a52}}
+:root[data-theme="dark"]{--bg:#10201e;--card:#1a2e2b;--ink:#e6f1ef;--mut:#93aca7;--line:#2c4540;--acc:#2dd4bf;--accink:#06201c;--warn:#fcd34d;--warnbg:#3a2f0e;--danger:#f87171;--out:#a5b4fc;--outbg:#272a52}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px 14px 60px}
+h2{font-size:15px;margin:22px 0 8px;color:var(--mut);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;color:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:14px 8px;min-height:54px;position:relative;touch-action:manipulation}
+button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+button:active{transform:scale(.98)}
+button:disabled{opacity:.4}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tab{font-weight:700;padding:12px 6px}
+.tab.on{background:var(--acc);color:var(--accink);border-color:var(--acc)}
+.proc{font-weight:600}
+.out{font-weight:600;background:var(--outbg);color:var(--out);border-color:var(--out)}
+.big{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:700;width:100%}
+.link{border:0;background:none;color:var(--acc);padding:6px 4px;min-height:0;font-size:14px}
+.x{position:absolute;top:-8px;right:-8px;width:26px;height:26px;min-height:0;padding:0;border-radius:50%;background:var(--danger);color:#fff;border:0;font-size:15px;line-height:1;opacity:1!important}
+.run .name{font-size:22px;font-weight:700}
+.timer{font-size:42px;font-weight:700;font-variant-numeric:tabular-nums}
+.meta{color:var(--mut);font-size:14px}
+.sub{background:var(--warnbg);color:var(--warn);border-radius:10px;padding:8px 10px;margin-top:10px;font-weight:600}
+.oth{border-style:dashed}
+.oth.active{background:var(--warnbg);color:var(--warn);border:2px solid var(--warn);font-weight:700}
+.add{display:flex;gap:8px;margin-top:10px}
+input[type=text]{flex:1;min-width:0;font:inherit;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.add button{min-height:0;padding:10px 16px;background:var(--acc);color:var(--accink);border:0;font-weight:600}
+.day{font-weight:700;margin:18px 0 6px}
+.log{margin-bottom:10px}
+.log .row{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.log .t{font-weight:700}
+.tag{font-size:12px;border-radius:6px;padding:1px 6px;margin-left:6px;background:var(--outbg);color:var(--out);font-weight:600}
+.dur{font-variant-numeric:tabular-nums;font-weight:700;color:var(--acc)}
+.li{font-size:14px;color:var(--warn);margin-top:3px;padding-left:10px;border-left:3px solid var(--warn)}
+.empty{color:var(--mut);text-align:center;padding:18px}
+textarea{width:100%;height:120px;margin-top:8px;font:13px monospace;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px}
+.del{font-size:13px;color:var(--danger)}
+select,input[type=date],input[type=time]{font:inherit;padding:11px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);min-width:0;color-scheme:light dark}
+.f{display:grid;gap:10px}.f input,.f select{width:100%}
+.fr{display:flex;gap:8px;align-items:flex-end}.fr>*{flex:1;min-width:0}
+.err{color:var(--danger);font-size:14px;min-height:0}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<main>
+<div class="tabs" id="areas"></div>
+<div class="tabs" id="tabs" style="margin-top:8px"></div>
+<div id="runbox" style="margin-top:14px"></div>
+
+<div id="clean">
+<h2><span id="h-proc"></span><button class="link" id="edit"></button></h2>
+<div class="grid" id="g-proc"></div>
+<div class="add" id="a-proc" hidden><input type="text" id="i-proc" placeholder="新增製程（僅此組別）" maxlength="20"><button data-k="proc">新增</button></div>
+
+<div id="insw" hidden>
+<h2>製程中做了別的事（點一下開始，再點一下結束）</h2>
+<div class="grid" id="g-ins"></div>
+<div class="add" id="a-ins" hidden><input type="text" id="i-ins" placeholder="新增插入事項" maxlength="20"><button data-k="ins">新增</button></div>
+</div>
+
+<h2><span id="h-out"></span></h2>
+<div class="grid" id="g-out"></div>
+<div class="add" id="a-out" hidden><input type="text" id="i-out" placeholder="新增製程外項目" maxlength="20"><button data-k="out">新增</button></div>
+
+</div>
+<div id="office" hidden>
+<h2><span id="h-office"></span><button class="link" id="edit2"></button></h2>
+<div class="grid" id="g-office"></div>
+<div class="add" id="a-office" hidden><input type="text" id="i-office" placeholder="新增無塵室外項目" maxlength="20"><button data-k="office">新增</button></div>
+</div>
+
+<button class="big" id="manual" style="margin-top:22px">＋ 補登紀錄（忘了按計時）</button>
+<div class="card f" id="mf" hidden style="margin-top:10px">
+<div class="meta">分類／組別</div>
+<div class="fr"><select id="m-kind"><option value="proc">製程內</option><option value="out">製程外</option><option value="office">無塵室外</option></select><select id="m-group"></select></div>
+<div class="meta">項目</div>
+<select id="m-name"></select>
+<input type="text" id="m-other" placeholder="輸入項目名稱" maxlength="20" hidden>
+<div class="meta">日期</div>
+<input type="date" id="m-date">
+<div class="fr"><div><div class="meta">開始時間</div><input type="time" id="m-s" step="1"></div><div><div class="meta">結束時間</div><input type="time" id="m-e" step="1"></div></div>
+<div id="m-subw" class="f"><div class="meta">插入事項（選填）</div><div id="m-subs" class="f"></div><button class="link" id="m-add" type="button">＋ 新增一筆插入事項</button></div>
+<datalist id="dl-ins"></datalist>
+<div class="err" id="m-err"></div>
+<div class="fr"><button class="big" id="m-save">儲存</button><button id="m-cancel">取消</button></div>
+</div>
+
+<h2><span>紀錄</span><button class="link" id="copy">複製全部（可貼到 Excel）</button></h2>
+<textarea id="ta" hidden readonly></textarea>
+<button class="big" id="xl" style="margin-bottom:10px">⬇ 下載 Excel 檔</button>
+<div id="logs"></div>
+</main>
+<script>
+var KEY='worklog.v2';
+var OUT8=['配製','清潔','檢測','小天使','個人業務','臨時交辦','教育訓練'];
+var GROUPS=['CIK商業針','WJ商業針'];
+var DEF={
+ 'CIK商業針':['進針','Pass','出針','凍cell bank','凍PBMC','解凍','解凍出針','養後凍','出+凍','進+解','取樣'],
+ 'WJ商業針':['出針','出針(恩慈)','解凍','放大','冷凍','GF解凍','GF放大','GF starvation','GF Wash','GF監控','GF裝瓶','GF裝瓶前處理','臍帶處理'],
+ ins:OUT8.slice(),out:OUT8.slice(),office:['MSC會議','生產部值日生','週會','生產例會','外部解凍','外部冷凍','個人業務-檢測觀察']};
+var S={area:'clean',group:GROUPS[0],custom:{},running:null,logs:[]};
+var editing=false;
+try{var r=localStorage.getItem(KEY);
+ if(r){var o=JSON.parse(r);if(o&&o.logs)S=o}
+ else{var r1=localStorage.getItem('worklog.v1');
+  if(r1){var o1=JSON.parse(r1);(o1.logs||[]).forEach(function(l){l.kind='proc';l.group=l.group||'';S.logs.push(l)})}}
+}catch(e){}
+if(GROUPS.indexOf(S.group)<0)S.group=GROUPS[0];
+if(S.area!=='office')S.area='clean';
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+var $=function(i){return document.getElementById(i)};
+function cust(k){return S.custom[k]=S.custom[k]||{add:[],del:[]}}
+function list(k){var c=cust(k);return DEF[k].filter(function(x){return c.del.indexOf(x)<0}).concat(c.add.filter(function(x){return DEF[k].indexOf(x)<0}))}
+function addTo(k,v){var c=cust(k),i=c.del.indexOf(v);if(i>=0)c.del.splice(i,1);else if(list(k).indexOf(v)<0)c.add.push(v);save()}
+function rmFrom(k,v){var c=cust(k),i=c.add.indexOf(v);if(i>=0)c.add.splice(i,1);else if(c.del.indexOf(v)<0)c.del.push(v);save()}
+function p2(n){return n<10?'0'+n:''+n}
+function hm(t){var d=new Date(t);return p2(d.getHours())+':'+p2(d.getMinutes())+':'+p2(d.getSeconds())}
+function dur(ms){ms=Math.max(0,Math.floor(ms/1000));return p2(Math.floor(ms/3600))+':'+p2(Math.floor(ms%3600/60))+':'+p2(ms%60)}
+function dstr(t){var d=new Date(t);return d.getFullYear()+'/'+p2(d.getMonth()+1)+'/'+p2(d.getDate())}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function actSub(run){return run.subs.filter(function(s){return !s.end})[0]}
+
+function grid(id,k,cls,onclick,dis,isActive){
+  var el=$(id);el.innerHTML='';
+  list(k).forEach(function(n){
+    var b=document.createElement('button');b.className=cls;b.textContent=n;
+    if(isActive&&isActive(n))b.classList.add('active');
+    b.disabled=editing?false:dis;
+    b.onclick=function(){if(!editing)onclick(n)};
+    if(editing){var x=document.createElement('button');x.className='x';x.textContent='×';x.setAttribute('aria-label','刪除 '+n);
+      x.onclick=function(e){e.stopPropagation();rmFrom(k,n);render()};b.appendChild(x)}
+    el.appendChild(b)});
+}
+function render(){
+  var run=S.running,now=Date.now(),g=S.group;
+  $('areas').innerHTML='';
+  [['clean','無塵室內'],['office','無塵室外']].forEach(function(a){var b=document.createElement('button');b.className='tab'+(S.area===a[0]?' on':'');b.textContent=a[1];b.onclick=function(){S.area=a[0];save();render()};$('areas').appendChild(b)});
+  $('clean').hidden=S.area!=='clean';$('office').hidden=S.area!=='office';$('tabs').hidden=S.area!=='clean';
+  $('tabs').innerHTML='';
+  GROUPS.forEach(function(n){var b=document.createElement('button');b.className='tab'+(n===g?' on':'');b.textContent=n;
+    b.onclick=function(){S.group=n;save();render()};$('tabs').appendChild(b)});
+  var rb=$('runbox');
+  if(run){
+    var act=run.kind==='proc'?actSub(run):null;
+    rb.innerHTML='<div class="card run"><div class="meta">'+(run.kind==='out'?'製程外進行中':run.kind==='office'?'無塵室外進行中':'製程進行中')+'　'+esc(run.group)+'</div><div class="name">'+esc(run.name)+'</div>'+
+    '<div class="timer" id="tm">'+dur(now-run.start)+'</div><div class="meta">開始時間 '+hm(run.start)+'</div>'+
+    (act?'<div class="sub">正在做：'+esc(act.name)+'（<span id="st">'+dur(now-act.start)+'</span>）</div>':'')+
+    '<div style="margin-top:12px"><button class="big" id="stop">結束'+(run.kind==='proc'?'製程':'')+'</button></div></div>';
+    $('stop').onclick=stopRun;
+  } else rb.innerHTML='';
+  $('h-proc').textContent=run?'製程內（進行中，請先結束）':'製程內：'+g+'（點一下開始計時）';
+  $('h-out').textContent=run?'製程外（進行中，請先結束）':'製程外（點一下開始計時）';
+  grid('g-proc',g,'proc',function(n){startRun('proc',n)},!!run);
+  var act2=run&&run.kind==='proc'?actSub(run):null;
+  $('insw').hidden=!((run&&run.kind==='proc')||editing);
+  grid('g-ins','ins','oth',toggleSub,!(run&&run.kind==='proc'),function(n){return act2&&act2.name===n});
+  grid('g-out','out','out',function(n){startRun('out',n)},!!run);
+  $('h-office').textContent=run?'無塵室外業務（進行中，請先結束）':'無塵室外業務（點一下開始計時）';
+  grid('g-office','office','out',function(n){startRun('office',n)},!!run);
+  ['proc','ins','out','office'].forEach(function(k){$('a-'+k).hidden=!editing});
+  $('edit').textContent=$('edit2').textContent=editing?'完成':'編輯選項';
+  renderLogs();
+}
+function startRun(kind,n){if(S.running)return;S.running={kind:kind,group:kind==='office'?'':S.group,name:n,start:Date.now(),subs:[]};save();render()}
+function toggleSub(n){
+  var run=S.running;if(!run||run.kind!=='proc')return;var now=Date.now(),a=actSub(run);
+  if(a)a.end=now;
+  if(!a||a.name!==n)run.subs.push({name:n,start:now,end:null});
+  save();render();
+}
+function stopRun(){
+  var run=S.running;if(!run)return;var now=Date.now();
+  run.subs.forEach(function(s){if(!s.end)s.end=now});
+  S.logs.unshift({id:now,kind:run.kind,group:run.group,name:run.name,start:run.start,end:now,subs:run.subs});
+  S.running=null;save();render();
+}
+function renderLogs(){
+  var el=$('logs');
+  if(!S.logs.length){el.innerHTML='<div class="card empty">還沒有紀錄，選一個項目開始吧</div>';return}
+  var h='',last='';
+  S.logs.forEach(function(l){
+    var d=dstr(l.start);if(d!==last){h+='<div class="day">'+d+'</div>';last=d}
+    var tot=l.end-l.start,sm=0;l.subs.forEach(function(s){sm+=s.end-s.start});
+    h+='<div class="card log"><div class="row"><span class="t">'+esc(l.name)+(l.kind==='out'?'<span class="tag">製程外</span>':l.kind==='office'?'<span class="tag">無塵室外</span>':'')+'</span><span class="dur">'+dur(tot)+'</span></div>'+
+    '<div class="meta">'+(l.group?esc(l.group)+'　':'')+hm(l.start)+' – '+hm(l.end)+(l.subs.length?'　淨製程 '+dur(tot-sm):'')+'</div>';
+    l.subs.forEach(function(s){h+='<div class="li">'+esc(s.name)+'　'+hm(s.start)+' – '+hm(s.end)+'（'+dur(s.end-s.start)+'）</div>'});
+    h+='<button class="link del" data-id="'+l.id+'">刪除</button></div>';
+  });
+  el.innerHTML=h;
+  Array.prototype.forEach.call(el.querySelectorAll('.del'),function(b){
+    b.onclick=function(){var id=+b.getAttribute('data-id');S.logs=S.logs.filter(function(x){return x.id!==id});save();render()}});
+}
+function addItem(k){
+  var inp=$('i-'+k),v=inp.value.trim();
+  if(v)addTo(k==='proc'?S.group:k,v);inp.value='';render();
+}
+Array.prototype.forEach.call(document.querySelectorAll('.add button'),function(b){b.onclick=function(){addItem(b.getAttribute('data-k'))}});
+['proc','ins','out','office'].forEach(function(k){$('i-'+k).onkeydown=function(e){if(e.key==='Enter')addItem(k)}});
+$('edit').onclick=$('edit2').onclick=function(){editing=!editing;render()};
+$('copy').onclick=function(){
+  var rows=['日期\t組別\t分類\t項目\t開始\t結束\t總時間\t插入事項'];
+  S.logs.slice().reverse().forEach(function(l){
+    var subs=l.subs.map(function(s){return s.name+' '+hm(s.start)+'-'+hm(s.end)}).join('；');
+    rows.push([dstr(l.start),l.group||'',l.kind==='out'?'製程外':l.kind==='office'?'無塵室外':'製程內',l.name,hm(l.start),hm(l.end),dur(l.end-l.start),subs].join('\t'))});
+  var txt=rows.join('\n'),ta=$('ta');ta.value=txt;ta.hidden=false;ta.select();
+  try{navigator.clipboard.writeText(txt).then(function(){ta.hidden=true;$('copy').textContent='已複製 ✓';setTimeout(function(){$('copy').textContent='複製全部（可貼到 Excel）'},1500)},function(){})}catch(e){}
+};
+setInterval(function(){
+  var run=S.running;if(!run)return;var now=Date.now();
+  var t=$('tm');if(t)t.textContent=dur(now-run.start);
+  var a=run.kind==='proc'?actSub(run):null,st=$('st');if(a&&st)st.textContent=dur(now-a.start);
+},1000);
+function mKey(){var k=$('m-kind').value;return k==='proc'?$('m-group').value:k==='out'?'out':'office'}
+function mFill(){
+  var k=$('m-kind').value,sel=$('m-name');sel.innerHTML='';
+  list(mKey()).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o)});
+  var o=document.createElement('option');o.value='__o';o.textContent='其他（自行輸入）';sel.appendChild(o);
+  $('m-group').hidden=k==='office';$('m-subw').hidden=k!=='proc';$('m-other').hidden=sel.value!=='__o';
+}
+function mAddSub(){
+  var d=document.createElement('div');d.className='f sr';
+  d.innerHTML='<input type="text" class="sn" list="dl-ins" placeholder="插入事項名稱" maxlength="20"><div class="fr"><input type="time" class="ss" step="1" aria-label="開始時間"><input type="time" class="se" step="1" aria-label="結束時間"><button class="link" type="button">移除</button></div>';
+  d.querySelector('button').onclick=function(){d.remove()};$('m-subs').appendChild(d);
+}
+$('manual').onclick=function(){
+  var g=$('m-group');g.innerHTML='';GROUPS.forEach(function(n){var o=document.createElement('option');o.value=o.textContent=n;g.appendChild(o)});
+  g.value=S.group;$('m-kind').value='proc';
+  var dl=$('dl-ins');dl.innerHTML='';list('ins').forEach(function(n){var o=document.createElement('option');o.value=n;dl.appendChild(o)});
+  var t=new Date();$('m-date').value=t.getFullYear()+'-'+p2(t.getMonth()+1)+'-'+p2(t.getDate());
+  $('m-s').value='';$('m-e').value='';$('m-other').value='';$('m-subs').innerHTML='';$('m-err').textContent='';
+  mFill();$('mf').hidden=false;$('mf').scrollIntoView({block:'nearest'});
+};
+$('m-kind').onchange=$('m-group').onchange=mFill;
+$('m-name').onchange=function(){$('m-other').hidden=this.value!=='__o'};
+$('m-add').onclick=mAddSub;
+$('m-cancel').onclick=function(){$('mf').hidden=true};
+$('m-save').onclick=function(){
+  var err=$('m-err'),kind=$('m-kind').value,sv=$('m-name').value;
+  var name=sv==='__o'?$('m-other').value.trim():sv,date=$('m-date').value,ts=$('m-s').value,te=$('m-e').value;
+  if(!name||!date||!ts||!te){err.textContent='請填寫項目、日期、開始與結束時間';return}
+  var st=new Date(date+'T'+ts).getTime(),en=new Date(date+'T'+te).getTime();
+  if(!(en>st)){err.textContent='結束時間要晚於開始時間';return}
+  var subs=[],bad=false;
+  if(kind==='proc')Array.prototype.forEach.call(document.querySelectorAll('#m-subs .sr'),function(r){
+    var n=r.querySelector('.sn').value.trim(),a=r.querySelector('.ss').value,b=r.querySelector('.se').value;
+    if(!n&&!a&&!b)return;
+    if(!n||!a||!b){bad=true;return}
+    var ss=new Date(date+'T'+a).getTime(),se=new Date(date+'T'+b).getTime();
+    if(!(se>ss)||ss<st||se>en){bad=true;return}
+    subs.push({name:n,start:ss,end:se});
+  });
+  if(bad){err.textContent='插入事項要填完整，且時間要在上面的開始與結束之間';return}
+  subs.sort(function(x,y){return x.start-y.start});
+  S.logs.push({id:Date.now()+Math.floor(Math.random()*1000),kind:kind,group:kind==='office'?'':$('m-group').value,name:name,start:st,end:en,subs:subs});
+  S.logs.sort(function(x,y){return y.start-x.start});
+  save();$('mf').hidden=true;render();
+};
+function dlBlob(blob,name){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500)}
+function mins(ms){return Math.round(ms/6000)/10}
+$('xl').onclick=function(){
+  var btn=$('xl'),label='⬇ 下載 Excel 檔';
+  function say(t){btn.textContent=t;setTimeout(function(){btn.textContent=label},1800)}
+  if(!S.logs.length){say('還沒有紀錄可以匯出');return}
+  var kn=function(l){return l.kind==='out'?'製程外':l.kind==='office'?'無塵室外':'製程內'};
+  var logs=S.logs.slice().sort(function(a,b){return a.start-b.start});
+  var A=[['日期','組別','分類','項目','開始','結束','總時間','總分鐘','插入事項合計(分鐘)','淨時間(分鐘)']];
+  var B=[['日期','組別','製程','插入事項','開始','結束','時間','分鐘']];
+  logs.forEach(function(l){
+    var tot=l.end-l.start,sm=0;
+    l.subs.forEach(function(x){var d=x.end-x.start;sm+=d;B.push([dstr(l.start),l.group||'',l.name,x.name,hm(x.start),hm(x.end),dur(d),mins(d)])});
+    A.push([dstr(l.start),l.group||'',kn(l),l.name,hm(l.start),hm(l.end),dur(tot),mins(tot),mins(sm),mins(tot-sm)]);
+  });
+  var t=new Date(),stamp=t.getFullYear()+p2(t.getMonth()+1)+p2(t.getDate());
+  try{
+    if(!window.XLSX)throw 0;
+    var wb=XLSX.utils.book_new(),w1=XLSX.utils.aoa_to_sheet(A);
+    w1['!cols']=[{wch:11},{wch:11},{wch:9},{wch:16},{wch:10},{wch:10},{wch:10},{wch:9},{wch:18},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,w1,'工時紀錄');
+    if(B.length>1){var w2=XLSX.utils.aoa_to_sheet(B);w2['!cols']=[{wch:11},{wch:11},{wch:16},{wch:16},{wch:10},{wch:10},{wch:10},{wch:9}];XLSX.utils.book_append_sheet(wb,w2,'插入事項明細')}
+    XLSX.writeFile(wb,'工時紀錄_'+stamp+'.xlsx');say('已下載 ✓');
+  }catch(e){
+    var csv='\ufeff'+A.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"'}).join(',')}).join('\r\n');
+    dlBlob(new Blob([csv],{type:'text/csv;charset=utf-8'}),'工時紀錄_'+stamp+'.csv');say('已下載（CSV 檔，可用 Excel 開啟）');
+  }
+};
+render();
+</script>
+</body>
+</html>
